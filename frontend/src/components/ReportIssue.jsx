@@ -46,14 +46,14 @@ function ReportIssue() {
           setValue("lat", pos.coords.latitude);
           setValue("lng", pos.coords.longitude);
         },
-        () => {}
+        () => { }
       );
     }
   }, [setValue]);
 
   const categories = [
-    "Garbage","Pothole","Water Leak","Streetlight","Sewer Overflow",
-    "Broken Bench","Damaged Road Sign","Noise Issue","Electricity","Others"
+    "Garbage", "Pothole", "Water Leak", "Streetlight", "Sewer Overflow",
+    "Broken Bench", "Damaged Road Sign", "Noise Issue", "Electricity", "Others"
   ];
 
   const handleFileChange = async (e) => {
@@ -64,14 +64,14 @@ function ReportIssue() {
     }
     setFiles(selected);
     setFilePreviewUrls(selected.map((f) => URL.createObjectURL(f)));
-    
+
     // Auto-detect issues from uploaded images
     if (selected.length > 0) {
       const imageFiles = selected.filter(f => f.type.startsWith('image/'));
       if (imageFiles.length > 0) {
         setDetecting(true);
         setDetected(null);
-        
+
         try {
           // Use the first image for detection
           const file = imageFiles[0];
@@ -99,44 +99,28 @@ function ReportIssue() {
     }
   };
 
-  const stopStream = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (detectionIntervalRef.current) {
-      clearInterval(detectionIntervalRef.current);
-      detectionIntervalRef.current = null;
-    }
-    setIsLiveDetection(false);
-    setLiveDetections([]);
-  };
-
-  const openCamera = async () => {
-    
-  };
-
+ 
 
 
   useEffect(() => {
     const drawBoundingBoxes = () => {
       if (!canvasRef.current || !videoRef.current) return;
-      
+
       const canvas = canvasRef.current;
       const video = videoRef.current;
       const ctx = canvas.getContext("2d");
-      
+
       canvas.width = video.videoWidth || 720;
       canvas.height = video.videoHeight || 1280;
-      
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
+
       liveDetections.forEach(detection => {
         const { x, y, w, h, label, confidence } = detection;
         ctx.strokeStyle = "#00ff00";
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, w, h);
-        
+
         ctx.fillStyle = "#00ff00";
         ctx.font = "14px Arial";
         ctx.fillText(`${label} (${Math.round(confidence * 100)}%)`, x, y - 5);
@@ -248,6 +232,50 @@ function ReportIssue() {
       setIsSubmitting(false);
     }
   };
+  const openCamera = async () => {
+    try {
+      setIsLiveDetection(true);
+      setDetecting(true);
+
+      const res = await fetch("http://127.0.0.1:8000/Interference/start-webcam/");
+      const data = await res.json();
+
+      if (data.status === "started" || data.status === "already_running") {
+        console.log("Backend webcam started");
+
+        // Now poll backend for last detected image
+        startFetchingFrames();
+      }
+    } catch (err) {
+      console.error("Error starting webcam:", err);
+    }
+  };
+  const startFetchingFrames = () => {
+    detectionIntervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch("http://127.0.0.1:8000/Interference/get-last-frame/");
+        const data = await res.json();
+        if (data.detections) {
+          setLiveDetections(data.detections);
+        }
+      } catch (err) {
+        console.error("Error fetching frame:", err);
+      }
+    }, 100);
+  };
+
+  const stopStream = async () => {
+    await fetch("http://127.0.0.1:8000/Interference/stop-webcam/");
+
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+      detectionIntervalRef.current = null;
+    }
+
+    setIsLiveDetection(false);
+    setLiveDetections([]);
+  };
+
 
   return (
     <section className="relative min-h-screen flex items-start justify-center pt-16 md:pt-20 px-4">
@@ -298,12 +326,12 @@ function ReportIssue() {
                 </select>
               </div>
             </div>
-            
+
             <div className="flex items-center">
-                <label className="inline-flex items-center gap-2 text-gray-300">
-                  <input type="checkbox" className="w-4 h-4" {...register("isAnonymous")} />
-                  Report anonymously
-                </label>
+              <label className="inline-flex items-center gap-2 text-gray-300">
+                <input type="checkbox" className="w-4 h-4" {...register("isAnonymous")} />
+                Report anonymously
+              </label>
             </div>
 
             <div className="space-y-4">
@@ -348,7 +376,7 @@ function ReportIssue() {
               {detecting && <span className="text-sm text-yellow-400">🔍 Detecting issues...</span>}
               {detected && (
                 <div className="text-sm text-green-400">
-                  ✅ Detected: {detected.label} ({Math.round((detected.confidence||0)*100)}% confidence)
+                  ✅ Detected: {detected.label} ({Math.round((detected.confidence || 0) * 100)}% confidence)
                 </div>
               )}
             </div>
